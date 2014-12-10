@@ -294,7 +294,8 @@ protected:
     /// Also applies the motion model if in use (specified in the options flag).
     /// \param[in,out] matches Contains the input likelihoods, and output probabilities.
     ///
-    void normaliseDistribution(std::vector<IMatch>& matches);
+    void normaliseDistribution(std::vector<IMatch>& matches,
+                               std::vector<IMatch> &prevMatches);
 
     //@{ Data
     /// Image descriptors seen in training (for sampled new location probability)

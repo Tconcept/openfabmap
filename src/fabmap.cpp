@@ -229,9 +229,9 @@ void FabMap::compareImgDescriptor(const cv::Mat& queryImgDescriptor,
 
     std::vector<IMatch> querymatches;
     querymatches.push_back(IMatch(queryIndex,-1,
-                                  getNewPlaceLikelihood(queryImgDescriptor),0));
+                                  getNewPlaceLikelihood(queryImgDescriptor),0.));
     getLikelihoods(queryImgDescriptor,_testImgDescriptors,querymatches);
-    normaliseDistribution(querymatches);
+    normaliseDistribution(querymatches, priormatches);
     for (size_t j = 1; j < querymatches.size(); j++) {
         querymatches[j].queryIdx = queryIndex;
     }
@@ -279,34 +279,35 @@ double FabMap::getNewPlaceLikelihood(const cv::Mat& queryImgDescriptor) {
     return 0;
 }
 
-void FabMap::normaliseDistribution(std::vector<IMatch>& matches) {
+void FabMap::normaliseDistribution(std::vector<IMatch>& matches,
+                                   std::vector<IMatch>& prevMatches) {
     CV_Assert(!matches.empty());
 
     if (flags & MOTION_MODEL) {
 
         matches[0].match = matches[0].likelihood + log(Pnew);
 
-        if (priormatches.size() > 2) {
+        if (prevMatches.size() > 2) {
             matches[1].match = matches[1].likelihood;
             matches[1].match += log(
-                        (2 * (1-mBias) * priormatches[1].match +
-                        priormatches[1].match +
-                    2 * mBias * priormatches[2].match) / 3);
-            for (size_t i = 2; i < priormatches.size()-1; i++) {
+                        (2 * (1-mBias) * prevMatches[1].match +
+                        prevMatches[1].match +
+                    2 * mBias * prevMatches[2].match) / 3);
+            for (size_t i = 2; i < prevMatches.size()-1; i++) {
                 matches[i].match = matches[i].likelihood;
                 matches[i].match += log(
-                            (2 * (1-mBias) * priormatches[i-1].match +
-                            priormatches[i].match +
-                            2 * mBias * priormatches[i+1].match)/3);
+                            (2 * (1-mBias) * prevMatches[i-1].match +
+                            prevMatches[i].match +
+                            2 * mBias * prevMatches[i+1].match)/3);
             }
-            matches[priormatches.size()-1].match =
-                    matches[priormatches.size()-1].likelihood;
-            matches[priormatches.size()-1].match += log(
-                        (2 * (1-mBias) * priormatches[priormatches.size()-2].match +
-                        priormatches[priormatches.size()-1].match +
-                    2 * mBias * priormatches[priormatches.size()-1].match)/3);
+            matches[prevMatches.size()-1].match =
+                    matches[prevMatches.size()-1].likelihood;
+            matches[prevMatches.size()-1].match += log(
+                        (2 * (1-mBias) * prevMatches[prevMatches.size()-2].match +
+                        prevMatches[prevMatches.size()-1].match +
+                    2 * mBias * prevMatches[prevMatches.size()-1].match)/3);
 
-            for(size_t i = priormatches.size(); i < matches.size(); i++) {
+            for(size_t i = prevMatches.size(); i < matches.size(); i++) {
                 matches[i].match = matches[i].likelihood;
             }
         } else {
@@ -334,7 +335,7 @@ void FabMap::normaliseDistribution(std::vector<IMatch>& matches) {
         }
 
         //update our location priors
-        priormatches = matches;
+        prevMatches = matches;
 
     } else {
 
