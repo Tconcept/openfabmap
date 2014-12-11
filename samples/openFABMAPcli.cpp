@@ -671,9 +671,8 @@ int openFABMAP(std::string testPath,
         prefixString += extString;
         extString = (extString.empty()?"":".") + tokenString;
     }
-    std::stringstream fullPathSS;
-    fullPathSS << prefixString << "_timing" << extString;
-    writer.open(fullPathSS.str());
+    std::string fullPathString = prefixString + "_timing" + extString;
+    writer.open(fullPathString.c_str());
     for(size_t i = 0; i < timingResults.size(); i++) {
         writer << timingResults[i] << " ";
     }
