@@ -75,6 +75,23 @@
 namespace of2 {
 
 ///
+/// \brief Timing object for performance statistics
+///
+class Timer
+{
+
+public:
+    Timer() {reset();}
+    void reset() {startTick = cv::getTickCount();}
+    double elapsed() const {
+        return (cv::getTickCount()-startTick)/cv::getTickFrequency();
+    }
+
+private:
+    int64 startTick;
+};
+
+///
 /// \brief The return data format for FabMap comparisons and localizations.
 ///
 struct CV_EXPORTS IMatch {
@@ -83,7 +100,8 @@ struct CV_EXPORTS IMatch {
     IMatch() :
         queryIdx(-1), imgIdx(-1),
         groupSize(0),
-        likelihood(-DBL_MAX), match(-DBL_MAX)
+        likelihood(-DBL_MAX), match(-DBL_MAX),
+        timeCompare(0.)
     {
     }
     ///
@@ -96,10 +114,11 @@ struct CV_EXPORTS IMatch {
     ///
     IMatch(int _queryIdx, int _imgIdx,
            double _likelihood, double _match,
-           unsigned int _groupSize = 0) :
+           double _timeCompare = 0., unsigned int _groupSize = 0) :
         queryIdx(_queryIdx), imgIdx(_imgIdx),
         groupSize(_groupSize),
-        likelihood(_likelihood), match(_match)
+        likelihood(_likelihood), match(_match),
+        timeCompare(_timeCompare)
     {
     }
 
@@ -110,6 +129,10 @@ struct CV_EXPORTS IMatch {
 
     double likelihood;  ///< The likelihood of the descriptors coming from the same location.
     double match;       ///< The normalized probability that the descriptors come from the same location
+
+    /// The time (s) it took to compare to all of the previous (queryIdx) places,
+    /// or to the training sample if imgIdx is -1.
+    double timeCompare;
 
     /**
      * @brief IMatch operator < for match probabilities.

@@ -220,8 +220,7 @@ int main(int argc, char * argv[])
 		result = -1;
 	}
 
-	std::cout << "openFABMAP done" << std::endl;
-	std::cin.sync(); std::cin.ignore();
+    std::cout << "openFABMAP done" << std::endl;
 
 	fs.release();
 	return result;
@@ -592,13 +591,16 @@ int openFABMAP(std::string testPath,
 	std::vector<of2::IMatch> matches;
 	std::vector<of2::IMatch>::iterator l;
 
-	
-	
+    std::vector<double> timingResults;
+    timingResults.reserve(testImageDescs.rows);
+    double totalCompareTime = 0.;
+    size_t totalCompareNum = 0;
+
 	cv::Mat confusion_mat(testImageDescs.rows, testImageDescs.rows, CV_64FC1);
     confusion_mat.setTo(0); // init to 0's
 
-
 	if (!addNewOnly) {
+        timingResults.resize(testImageDescs.rows, 0.);
 
 		//automatically comparing a whole dataset
         fabmap->localize(testImageDescs, matches, true);
@@ -610,6 +612,9 @@ int openFABMAP(std::string testPath,
 			} else {
 				confusion_mat.at<double>(l->queryIdx, l->imgIdx) = l->match;
 			}
+            timingResults[l->queryIdx] += l->timeCompare;
+            if (l->imgIdx >= 0 && ++totalCompareNum)
+                totalCompareTime += l->timeCompare;
 		}
 
 	} else {
@@ -620,6 +625,7 @@ int openFABMAP(std::string testPath,
 			//compare images individually
             fabmap->localize(testImageDescs.row(i), matches);
 
+            double queryTime = 0;
 			bool new_place_max = true;
 			for(l = matches.begin(); l != matches.end(); l++) {
 				
@@ -636,23 +642,46 @@ int openFABMAP(std::string testPath,
 				if(l->match > matches.front().match) {
 					new_place_max = false;
 				}
+                queryTime += l->timeCompare;
+                if (l->imgIdx >= 0 && ++totalCompareNum)
+                    totalCompareTime += l->timeCompare;
 			}
 
 			if(new_place_max) {
-				fabmap->add(testImageDescs.row(i));
+                fabmap->add(testImageDescs.row(i));
 			}
+            timingResults.push_back(queryTime);
 		}
 	}
 
-	//save the result as plain text for ease of import to Matlab
-	std::ofstream writer(resultsPath.c_str());
+    //save the result as plain text for ease of import to Matlab
+    std::ofstream writer(resultsPath.c_str());
 	for(int i = 0; i < confusion_mat.rows; i++) {
 		for(int j = 0; j < confusion_mat.cols; j++) {
 			writer << confusion_mat.at<double>(i, j) << " ";
 		}
 		writer << std::endl;
 	}
-	writer.close();
+    writer.close();
+
+    std::stringstream resultSS(resultsPath);
+    std::string tokenString, extString, prefixString;
+    while(std::getline(resultSS, tokenString, '.'))
+    {
+        prefixString += extString;
+        extString = (extString.empty()?"":".") + tokenString;
+    }
+    std::stringstream fullPathSS;
+    fullPathSS << prefixString << "_timing" << extString;
+    writer.open(fullPathSS.str());
+    for(size_t i = 0; i < timingResults.size(); i++) {
+        writer << timingResults[i] << " ";
+    }
+    writer.close();
+
+    // Timing message
+    std::cout << "Compared " << totalCompareNum << " places, "
+              << (totalCompareTime/totalCompareNum) << " s average." << std::endl;
 
 	return 0;
 }

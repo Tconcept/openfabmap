@@ -228,8 +228,10 @@ void FabMap::compareImgDescriptor(const cv::Mat& queryImgDescriptor,
                                   std::vector<IMatch>& matches) {
 
     std::vector<IMatch> querymatches;
-    querymatches.push_back(IMatch(queryIndex,-1,
-                                  getNewPlaceLikelihood(queryImgDescriptor),0.));
+    Timer timer;
+    IMatch newPlaceMatch(queryIndex,-1, getNewPlaceLikelihood(queryImgDescriptor),0.);
+    newPlaceMatch.timeCompare = timer.elapsed();
+    querymatches.push_back(newPlaceMatch);
     getLikelihoods(queryImgDescriptor,_testImgDescriptors,querymatches);
     normaliseDistribution(querymatches, priormatches);
     for (size_t j = 1; j < querymatches.size(); j++) {
@@ -372,6 +374,7 @@ void FabMap1::getLikelihoods(const cv::Mat& queryImgDescriptor,
 #pragma omp parallel for if (testImgDescriptors.size() > 100)
     for (int i = 0; i < (int)testImgDescriptors.size(); i++)
     {
+        Timer timer;
         bool zq, zpq, Lzq;
         double logP = 0;
         for (int q = 0; q < infer->vocabSize(); q++)
@@ -381,7 +384,7 @@ void FabMap1::getLikelihoods(const cv::Mat& queryImgDescriptor,
             Lzq = testImgDescriptors[i].at<float>(0,q) > 0;
             logP += log(infer->PzGL(q, zq, zpq, Lzq, false));
         }
-        matches[startOfNewMatches+(size_t)i] = IMatch(0,i,logP,0);
+        matches[startOfNewMatches+(size_t)i] = IMatch(0,i,logP,0,timer.elapsed());
     }
 }
 
