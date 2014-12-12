@@ -53,6 +53,8 @@
 
 #include "../include/fabmap.hpp"
 
+#include <iostream>
+
 /*
     Calculate the sum of two log likelihoods
 */
@@ -229,9 +231,8 @@ void FabMap::compareImgDescriptor(const cv::Mat& queryImgDescriptor,
 
     std::vector<IMatch> querymatches;
     Timer timer;
-    IMatch newPlaceMatch(queryIndex,-1, getNewPlaceLikelihood(queryImgDescriptor),0.);
-    newPlaceMatch.timeCompare = timer.elapsed();
-    querymatches.push_back(newPlaceMatch);
+    double newPlaceLikelihood = getNewPlaceLikelihood(queryImgDescriptor);
+    querymatches.push_back(IMatch(queryIndex,-1,newPlaceLikelihood,0.,timer.elapsed()));
     getLikelihoods(queryImgDescriptor,_testImgDescriptors,querymatches);
     normaliseDistribution(querymatches, priormatches);
     for (size_t j = 1; j < querymatches.size(); j++) {
@@ -371,10 +372,10 @@ void FabMap1::getLikelihoods(const cv::Mat& queryImgDescriptor,
     size_t startOfNewMatches = matches.size();
     matches.resize(startOfNewMatches+testImgDescriptors.size());
 
-#pragma omp parallel for if (testImgDescriptors.size() > 100)
+    Timer timer;
+#pragma omp parallel for
     for (int i = 0; i < (int)testImgDescriptors.size(); i++)
     {
-        Timer timer;
         bool zq, zpq, Lzq;
         double logP = 0;
         for (int q = 0; q < infer->vocabSize(); q++)
@@ -385,6 +386,12 @@ void FabMap1::getLikelihoods(const cv::Mat& queryImgDescriptor,
             logP += log(infer->PzGL(q, zq, zpq, Lzq, false));
         }
         matches[startOfNewMatches+(size_t)i] = IMatch(0,i,logP,0,timer.elapsed());
+    }
+
+    double avgTime = timer.elapsed()/testImgDescriptors.size();
+#pragma omp parallel for
+    for (int i = 0; i < (int)testImgDescriptors.size(); i++) {
+        matches[startOfNewMatches+(size_t)i].timeCompare = avgTime;
     }
 }
 
@@ -669,6 +676,7 @@ void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
 
     std::vector<double> likelihoods = defaults;
 
+    Timer timer;
     for (int q = 0; q < infer->vocabSize(); q++) {
         if (queryImgDescriptor.at<float>(0,q) > 0) {
             for (LwithI = invertedMap[q].begin();
@@ -694,8 +702,9 @@ void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
         }
     }
 
+    double avgTime = timer.elapsed()/likelihoods.size();
     for (size_t i = 0; i < likelihoods.size(); i++) {
-        matches.push_back(IMatch(0,(int)i,likelihoods[i],0));
+        matches.push_back(IMatch(0,(int)i,likelihoods[i],0,avgTime));
     }
 }
 

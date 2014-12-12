@@ -591,16 +591,17 @@ int openFABMAP(std::string testPath,
 	std::vector<of2::IMatch> matches;
 	std::vector<of2::IMatch>::iterator l;
 
-    std::vector<double> timingResults;
-    timingResults.reserve(testImageDescs.rows);
-    double totalCompareTime = 0.;
-    size_t totalCompareNum = 0;
+    std::vector<std::pair<double, double> > mapTimingResults;
+    mapTimingResults.reserve(testImageDescs.rows);
+    double mapCompareTime = 0., newPlaceCompareTime = 0.;
+    size_t mapCompareNum = 0, newPlaceCompareNum = 0;
 
 	cv::Mat confusion_mat(testImageDescs.rows, testImageDescs.rows, CV_64FC1);
     confusion_mat.setTo(0); // init to 0's
 
 	if (!addNewOnly) {
-        timingResults.resize(testImageDescs.rows, 0.);
+        mapTimingResults.resize(testImageDescs.rows,
+                                std::pair<double,double>(0., 0.));
 
 		//automatically comparing a whole dataset
         fabmap->localize(testImageDescs, matches, true);
@@ -612,9 +613,10 @@ int openFABMAP(std::string testPath,
 			} else {
 				confusion_mat.at<double>(l->queryIdx, l->imgIdx) = l->match;
 			}
-            timingResults[l->queryIdx] += l->timeCompare;
-            if (l->imgIdx >= 0 && ++totalCompareNum)
-                totalCompareTime += l->timeCompare;
+            (l->imgIdx<0?mapTimingResults[l->queryIdx].first:
+                mapTimingResults[l->queryIdx].second) += l->timeCompare;
+            (l->imgIdx<0?newPlaceCompareTime:mapCompareTime) += l->timeCompare;
+            ++(l->imgIdx<0?newPlaceCompareNum:mapCompareNum);
 		}
 
 	} else {
@@ -625,7 +627,7 @@ int openFABMAP(std::string testPath,
 			//compare images individually
             fabmap->localize(testImageDescs.row(i), matches);
 
-            double queryTime = 0;
+            double newPlaceTime = 0., mapTime = 0.;
 			bool new_place_max = true;
 			for(l = matches.begin(); l != matches.end(); l++) {
 				
@@ -642,17 +644,27 @@ int openFABMAP(std::string testPath,
 				if(l->match > matches.front().match) {
 					new_place_max = false;
 				}
-                queryTime += l->timeCompare;
-                if (l->imgIdx >= 0 && ++totalCompareNum)
-                    totalCompareTime += l->timeCompare;
+                (l->imgIdx >= 0?newPlaceTime:mapTime) += l->timeCompare;
+                (l->imgIdx<0?newPlaceCompareTime:mapCompareTime) += l->timeCompare;
+                ++(l->imgIdx<0?newPlaceCompareNum:mapCompareNum);
 			}
 
 			if(new_place_max) {
                 fabmap->add(testImageDescs.row(i));
 			}
-            timingResults.push_back(queryTime);
+            mapTimingResults.push_back(std::pair<double,double>(newPlaceTime, mapTime));
 		}
 	}
+
+    // Timing message
+    std::cout << "Compared to map " << mapCompareNum << " x in "
+              << mapCompareTime << " s (" << 1e6*(mapCompareTime/mapCompareNum)
+              << " us/comparison).\n"
+              << "Compared to new " << newPlaceCompareNum
+              << " x in " << newPlaceCompareTime << " s ("
+              << 1e6*(newPlaceCompareTime/newPlaceCompareNum) << "us/evaluation).\n"
+              << "Total time " << (mapCompareTime+newPlaceCompareTime)
+              << " s. Timing file rows are new and map comparison times." << std::endl;
 
     //save the result as plain text for ease of import to Matlab
     std::ofstream writer(resultsPath.c_str());
@@ -673,14 +685,15 @@ int openFABMAP(std::string testPath,
     }
     std::string fullPathString = prefixString + "_timing" + extString;
     writer.open(fullPathString.c_str());
-    for(size_t i = 0; i < timingResults.size(); i++) {
-        writer << timingResults[i] << " ";
+    for(int isMap = 0; isMap < 2; ++isMap)
+    {
+        for(size_t i = 0; i < mapTimingResults.size(); i++) {
+            writer << (!isMap?mapTimingResults[i].first:
+                              mapTimingResults[i].second) << " ";
+        }
+        writer << std::endl;
     }
     writer.close();
-
-    // Timing message
-    std::cout << "Compared " << totalCompareNum << " places, "
-              << (totalCompareTime/totalCompareNum) << " s average." << std::endl;
 
 	return 0;
 }
