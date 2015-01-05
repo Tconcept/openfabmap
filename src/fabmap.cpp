@@ -659,6 +659,10 @@ void FabMap2::addToIndex(const cv::Mat& queryImgDescriptor,
                          std::vector<double>& defaults,
                          std::map<int, std::vector<int> >& invertedMap) {
     defaults.push_back(0);
+    if ((int)invertedMap.size() < infer->vocabSize()) {
+      for (int q = 0; q < infer->vocabSize(); ++q)
+        invertedMap[q];
+    }
     for (int q = 0; q < infer->vocabSize(); q++) {
         if (queryImgDescriptor.at<float>(0,q) > 0) {
             defaults.back() += d1[q];
@@ -668,34 +672,38 @@ void FabMap2::addToIndex(const cv::Mat& queryImgDescriptor,
 }
 
 void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
-                                  std::vector<double>& defaults,
-                                  std::map<int, std::vector<int> >& invertedMap,
+                                  const std::vector<double>& defaults,
+                                  const std::map<int, std::vector<int> >& invertedMap,
                                   std::vector<IMatch>& matches) {
 
-    std::vector<int>::iterator LwithI, child;
-
     std::vector<double> likelihoods = defaults;
+    if (likelihoods.empty())
+        return;
 
     Timer timer;
+#pragma omp parallel for
     for (int q = 0; q < infer->vocabSize(); q++) {
         if (queryImgDescriptor.at<float>(0,q) > 0) {
-            for (LwithI = invertedMap[q].begin();
-                 LwithI != invertedMap[q].end(); LwithI++) {
+        std::vector<int>::const_iterator LwithI, child;
+            for (LwithI = invertedMap.at(q).begin();
+                 LwithI != invertedMap.at(q).end(); LwithI++) {
 
                 if (queryImgDescriptor.at<float>(0,infer->pq(q)) > 0) {
-                    likelihoods[*LwithI] += d4[q];
+#pragma omp atomic
+            likelihoods[*LwithI] += d4[q];
                 } else {
-                    likelihoods[*LwithI] += d3[q];
+#pragma omp atomic
+            likelihoods[*LwithI] += d3[q];
                 }
             }
             for (child = children[q].begin(); child != children[q].end();
                  child++) {
 
                 if (queryImgDescriptor.at<float>(0,*child) == 0) {
-                    for (LwithI = invertedMap[*child].begin();
-                         LwithI != invertedMap[*child].end(); LwithI++) {
-
-                        likelihoods[*LwithI] += d2[*child];
+            for (LwithI = invertedMap.at(*child).begin();
+                         LwithI != invertedMap.at(*child).end(); LwithI++) {
+#pragma omp atomic
+            likelihoods[*LwithI] += d2[*child];
                     }
                 }
             }
@@ -703,8 +711,11 @@ void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
     }
 
     double avgTime = timer.elapsed()/likelihoods.size();
+    // Preallocate matches
+    size_t startOfNewMatches = matches.size();
+    matches.resize(startOfNewMatches+likelihoods.size());
     for (size_t i = 0; i < likelihoods.size(); i++) {
-        matches.push_back(IMatch(0,(int)i,likelihoods[i],0,avgTime));
+        matches[startOfNewMatches+(size_t)i] = IMatch(0,(int)i,likelihoods[i],0,avgTime);
     }
 }
 

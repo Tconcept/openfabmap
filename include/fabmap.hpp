@@ -489,8 +489,8 @@ protected:
     double getNewPlaceLikelihood(const cv::Mat& queryImgDescriptor);
 
     //the likelihood function using the inverted index
-    void getIndexLikelihoods(const cv::Mat& queryImgDescriptor, std::vector<
-                             double>& defaults, std::map<int, std::vector<int> >& invertedMap,
+    void getIndexLikelihoods(const cv::Mat& queryImgDescriptor, const std::vector<
+                             double>& defaults, const std::map<int, std::vector<int> >& invertedMap,
                              std::vector<IMatch>& matches);
     void addToIndex(const cv::Mat& queryImgDescriptor,
                     std::vector<double>& defaults,
