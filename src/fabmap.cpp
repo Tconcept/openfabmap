@@ -691,7 +691,7 @@ void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
 
     Timer timer;
 //#pragma omp parallel for schedule(dynamic)
-    for (int i=0; i < sbow.size(); ++i) {
+    for (size_t i=0; i < sbow.size(); ++i) {
         int q = sbow[i];
         std::vector<int>::const_iterator LwithI, child;
         for (LwithI = invertedMap[q].begin();
