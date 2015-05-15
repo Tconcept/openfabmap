@@ -490,11 +490,11 @@ protected:
 
     //the likelihood function using the inverted index
     void getIndexLikelihoods(const cv::Mat& queryImgDescriptor, const std::vector<
-                             double>& defaults, const std::map<int, std::vector<int> >& invertedMap,
+                             double>& defaults, const std::vector<std::vector<int> >& invertedMap,
                              std::vector<IMatch>& matches);
     void addToIndex(const cv::Mat& queryImgDescriptor,
                     std::vector<double>& defaults,
-                    std::map<int, std::vector<int> >& invertedMap);
+                    std::vector<std::vector<int> >& invertedMap);
 
     //data
     std::vector<double> d1, d2, d3, d4;
@@ -503,10 +503,10 @@ protected:
     // TODO: inverted map a std::vector?
 
     std::vector<double> trainingDefaults;
-    std::map<int, std::vector<int> > trainingInvertedMap;
+    std::vector<std::vector<int> > trainingInvertedMap;
 
     std::vector<double> testDefaults;
-    std::map<int, std::vector<int> > testInvertedMap;
+    std::vector<std::vector<int> > testInvertedMap;
 
 };
 

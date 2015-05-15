@@ -629,7 +629,7 @@ void FabMap2::getLikelihoods(const cv::Mat& queryImgDescriptor,
     } else {
         CV_Assert(!(flags & MOTION_MODEL));
         std::vector<double> defaults;
-        std::map<int, std::vector<int> > invertedMap;
+        std::vector<std::vector<int> > invertedMap;
         for (size_t i = 0; i < testImageDescriptors.size(); i++) {
             addToIndex(testImageDescriptors[i],defaults,invertedMap);
         }
@@ -657,11 +657,10 @@ double FabMap2::getNewPlaceLikelihood(const cv::Mat& queryImgDescriptor) {
 
 void FabMap2::addToIndex(const cv::Mat& queryImgDescriptor,
                          std::vector<double>& defaults,
-                         std::map<int, std::vector<int> >& invertedMap) {
+                         std::vector<std::vector<int> >& invertedMap) {
     defaults.push_back(0);
     if ((int)invertedMap.size() < infer->vocabSize()) {
-      for (int q = 0; q < infer->vocabSize(); ++q)
-        invertedMap[q];
+        invertedMap.resize(infer->vocabSize());
     }
     for (int q = 0; q < infer->vocabSize(); q++) {
         if (queryImgDescriptor.at<float>(0,q) > 0) {
@@ -673,38 +672,46 @@ void FabMap2::addToIndex(const cv::Mat& queryImgDescriptor,
 
 void FabMap2::getIndexLikelihoods(const cv::Mat& queryImgDescriptor,
                                   const std::vector<double>& defaults,
-                                  const std::map<int, std::vector<int> >& invertedMap,
+                                  const std::vector<std::vector<int> >& invertedMap,
                                   std::vector<IMatch>& matches) {
 
     std::vector<double> likelihoods = defaults;
     if (likelihoods.empty())
         return;
 
-    Timer timer;
-#pragma omp parallel for
+    // For comparable timing to sparse storage,
+    // extract sparse BOW indices.
+    std::vector<int> sbow;
+    sbow.reserve(infer->vocabSize());
     for (int q = 0; q < infer->vocabSize(); q++) {
         if (queryImgDescriptor.at<float>(0,q) > 0) {
+            sbow.push_back(q);
+        }
+    }
+
+    Timer timer;
+//#pragma omp parallel for schedule(dynamic)
+    for (int i=0; i < sbow.size(); ++i) {
+        int q = sbow[i];
         std::vector<int>::const_iterator LwithI, child;
-            for (LwithI = invertedMap.at(q).begin();
-                 LwithI != invertedMap.at(q).end(); LwithI++) {
-
-                if (queryImgDescriptor.at<float>(0,infer->pq(q)) > 0) {
-#pragma omp atomic
-            likelihoods[*LwithI] += d4[q];
-                } else {
-#pragma omp atomic
-            likelihoods[*LwithI] += d3[q];
-                }
+        for (LwithI = invertedMap[q].begin();
+             LwithI != invertedMap[q].end(); LwithI++) {
+            if (*queryImgDescriptor.ptr<float>(0,infer->pq(q)) > 0) {
+//#pragma omp atomic
+        likelihoods[*LwithI] += d4[q];
+            } else {
+//#pragma omp atomic
+        likelihoods[*LwithI] += d3[q];
             }
-            for (child = children[q].begin(); child != children[q].end();
-                 child++) {
+        }
+        for (child = children[q].begin(); child != children[q].end();
+             child++) {
 
-                if (queryImgDescriptor.at<float>(0,*child) == 0) {
-            for (LwithI = invertedMap.at(*child).begin();
-                         LwithI != invertedMap.at(*child).end(); LwithI++) {
-#pragma omp atomic
-            likelihoods[*LwithI] += d2[*child];
-                    }
+            if (*queryImgDescriptor.ptr<float>(0,*child) == 0) {
+        for (LwithI = invertedMap[*child].begin();
+                     LwithI != invertedMap[*child].end(); LwithI++) {
+//#pragma omp atomic
+        likelihoods[*LwithI] += d2[*child];
                 }
             }
         }
